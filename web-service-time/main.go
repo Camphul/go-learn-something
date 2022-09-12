@@ -29,15 +29,16 @@ func main() {
 	listener := listenerConfig{"localhost", 8000}
 	listenerStringFmt := fmt.Sprintf("%s:%d", listener.host, listener.port)
 	fmt.Printf("Starting http listener on %s\n", listenerStringFmt)
-	http.HandleFunc("/", handler) // each request calls handler
 	http.HandleFunc("/timestamp", timestampHandler)
+	http.Handle("/favicon.ico", http.NotFoundHandler())
+	http.HandleFunc("/", handler) // each request calls handler
 	log.Fatal(http.ListenAndServe(listenerStringFmt, nil))
 }
 
 // handler echoes the Path component of the request URL r.
 func timestampHandler(w http.ResponseWriter, r *http.Request) {
 	unixMilli := time.Now().UnixMilli()
-	fmt.Printf("%d - Handling timestamp request from %s\n", unixMilli, r.RemoteAddr)
+	fmt.Printf("%d - Handling %s timestamp request from %s\n", unixMilli, r.Method, r.RemoteAddr)
 	responseVal := TimestampResponse[int64]{false, svcId, unixMilli, apiVersion}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
