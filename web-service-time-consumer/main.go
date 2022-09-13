@@ -12,7 +12,7 @@ import (
 )
 
 const apiVersion = "0.10.0"
-const fetchTimeoutDuration = time.Millisecond * 100
+const fetchTimeout = time.Millisecond * 100
 const requestTimout = time.Duration(time.Millisecond * 600)
 
 var svcId = "time-consumer-svc"
@@ -67,7 +67,7 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func fetch(ctx context.Context, url string) (response any, err error) {
-	timeoutContext, cancel := context.WithTimeout(ctx, fetchTimeoutDuration)
+	timeoutContext, cancel := context.WithTimeout(ctx, fetchTimeout)
 	defer cancel()
 	start := time.Now()
 	req, err := http.NewRequestWithContext(timeoutContext, http.MethodGet, url, nil)
