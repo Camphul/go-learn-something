@@ -26,7 +26,7 @@ type TimestampResponse[v any] struct {
 
 func main() {
 	svcId = fmt.Sprintf("svc-id-%d", time.Now().UnixMilli())
-	listener := listenerConfig{"localhost", 8000}
+	listener := listenerConfig{"0.0.0.0", 8000}
 	listenerStringFmt := fmt.Sprintf("%s:%d", listener.host, listener.port)
 	fmt.Printf("Starting http listener on %s\n", listenerStringFmt)
 	http.HandleFunc("/timestamp", timestampHandler)

@@ -6,13 +6,15 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"time"
 )
 
-var svcId = "consumer-svc-id"
+const apiVersion = "0.10.0"
 
-const apiVersion = "v1"
-const timeSvcURL = "http://localhost:8000/timestamp"
+var svcId = "time-svc-consumer-id"
+
+var timeSvcURL string
 
 type listenerConfig struct {
 	host string
@@ -26,8 +28,13 @@ type TimestampResponse[v any] struct {
 }
 
 func main() {
-	svcId = fmt.Sprintf("consumer-svc-id-%d", time.Now().UnixMilli())
-	listener := listenerConfig{"localhost", 8008}
+	if val, ok := os.LookupEnv("TIMESVC_URL"); ok {
+		timeSvcURL = val
+	} else {
+		timeSvcURL = "http://localhost:8000/timestamp"
+	}
+	svcId = fmt.Sprintf("%s-%d", svcId, time.Now().UnixMilli())
+	listener := listenerConfig{"0.0.0.0", 8008}
 	listenerStringFmt := fmt.Sprintf("%s:%d", listener.host, listener.port)
 	fmt.Printf("Starting time consumer svc http listener on %s\n", listenerStringFmt)
 	http.Handle("/favicon.ico", http.NotFoundHandler())
@@ -36,13 +43,20 @@ func main() {
 }
 func fetch(url string, ch chan<- TimestampResponse[int64]) {
 	start := time.Now()
-	resp, err := http.Get(url)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		fmt.Print(err) // send to channel ch
 		return
 	}
+	defer close(ch)
+	client := http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Print(err) // send to channel ch
+		return
+	}
+	defer resp.Body.Close() // don't leak resources
 	b, err := ioutil.ReadAll(resp.Body)
-	resp.Body.Close() // don't leak resources
 	if err != nil {
 		fmt.Printf("while reading %s: %v", url, err)
 		return
@@ -54,7 +68,6 @@ func fetch(url string, ch chan<- TimestampResponse[int64]) {
 		return
 	}
 	ch <- timeSvcResponse
-	close(ch)
 	secs := time.Since(start).Seconds()
 	fmt.Printf("%.2fs %s", secs, url)
 }
@@ -64,9 +77,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	unixMilli := time.Now().UnixMilli()
 	fmt.Printf("%d - Handling request from %s\n", unixMilli, r.RemoteAddr)
 	fmt.Printf("%d - Fetching URL %s\n", unixMilli, timeSvcURL)
+
 	ch := make(chan TimestampResponse[int64])
 	go fetch(timeSvcURL, ch)
-	responseVal := TimestampResponse[TimestampResponse[int64]]{false, svcId, <-ch, apiVersion}
+	response := <-ch
+	responseVal := TimestampResponse[TimestampResponse[int64]]{false, svcId, response, apiVersion}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(responseVal)
