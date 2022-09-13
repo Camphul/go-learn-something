@@ -12,7 +12,7 @@ const apiVersion = "0.10.0"
 
 var svcId = "timestamp-svc"
 
-const requestTimout = time.Duration(time.Millisecond * 50)
+const requestTimout = time.Duration(time.Millisecond * 200)
 
 type listenerConfig struct {
 	host string

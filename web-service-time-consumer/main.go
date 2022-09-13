@@ -12,8 +12,8 @@ import (
 )
 
 const apiVersion = "0.10.0"
-const fetchTimeoutDuration = time.Millisecond * 20
-const requestTimout = time.Duration(time.Millisecond * 50)
+const fetchTimeoutDuration = time.Millisecond * 100
+const requestTimout = time.Duration(time.Millisecond * 600)
 
 var svcId = "time-consumer-svc"
 
