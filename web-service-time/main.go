@@ -8,9 +8,11 @@ import (
 	"time"
 )
 
-const apiVersion = "1"
+const apiVersion = "0.10.0"
 
-var svcId = "svc-id"
+var svcId = "timestamp-svc"
+
+const requestTimout = time.Duration(time.Millisecond * 50)
 
 type listenerConfig struct {
 	host string
@@ -24,35 +26,28 @@ type TimestampResponse[v any] struct {
 	ApiVersion string `json:"apiVersion"`
 }
 
+func withTimeout(hand http.HandlerFunc) http.Handler {
+	return http.TimeoutHandler(http.HandlerFunc(hand), requestTimout, "Request took too long to complete.")
+}
 func main() {
-	svcId = fmt.Sprintf("svc-id-%d", time.Now().UnixMilli())
+	svcId = fmt.Sprintf("%s-%d", svcId, time.Now().UnixMilli())
 	listener := listenerConfig{"0.0.0.0", 8000}
 	listenerStringFmt := fmt.Sprintf("%s:%d", listener.host, listener.port)
 	fmt.Printf("Starting http listener on %s\n", listenerStringFmt)
-	http.HandleFunc("/timestamp", timestampHandler)
-	http.Handle("/favicon.ico", http.NotFoundHandler())
-	http.HandleFunc("/", handler) // each request calls handler
+	http.Handle("/timestamp", withTimeout(handler))
+	http.Handle("/", http.NotFoundHandler())
 	log.Fatal(http.ListenAndServe(listenerStringFmt, nil))
 }
 
 // handler echoes the Path component of the request URL r.
-func timestampHandler(w http.ResponseWriter, r *http.Request) {
-	unixMilli := time.Now().UnixMilli()
-	fmt.Printf("%d - Handling %s timestamp request from %s\n", unixMilli, r.Method, r.RemoteAddr)
-	responseVal := TimestampResponse[int64]{false, svcId, unixMilli, apiVersion}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(responseVal)
-}
-
-// handler echoes the Path component of the request URL r.
 func handler(w http.ResponseWriter, r *http.Request) {
-	unixMilli := time.Now().UnixMilli()
-
-	fmt.Printf("%d - Handling 404 request from %s\n", unixMilli, r.RemoteAddr)
-	responseMsg := fmt.Sprintf("Does not support URL.Path = %q", r.URL.Path)
-	responseVal := TimestampResponse[string]{true, svcId, responseMsg, apiVersion}
+	timestamp := time.Now().UnixMilli()
+	fmt.Printf("%s - Handling %s timestamp request from %s\n", svcId, r.Method, r.Host)
+	responseVal := TimestampResponse[int64]{false, svcId, timestamp, apiVersion}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(responseVal)
+	err := json.NewEncoder(w).Encode(responseVal)
+	if err != nil {
+		fmt.Print(err)
+	}
 }

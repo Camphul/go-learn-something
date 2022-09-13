@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -11,8 +12,10 @@ import (
 )
 
 const apiVersion = "0.10.0"
+const fetchTimeoutDuration = time.Millisecond * 20
+const requestTimout = time.Duration(time.Millisecond * 50)
 
-var svcId = "time-svc-consumer-id"
+var svcId = "time-consumer-svc"
 
 var timeSvcURL string
 
@@ -38,51 +41,59 @@ func main() {
 	listenerStringFmt := fmt.Sprintf("%s:%d", listener.host, listener.port)
 	fmt.Printf("Starting time consumer svc http listener on %s\n", listenerStringFmt)
 	http.Handle("/favicon.ico", http.NotFoundHandler())
-	http.HandleFunc("/", handler) // each request calls handler
+	http.Handle("/", withTimeout(handler)) // each request calls handler
 	log.Fatal(http.ListenAndServe(listenerStringFmt, nil))
 }
-func fetch(url string, ch chan<- TimestampResponse[int64]) {
-	start := time.Now()
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+func withTimeout(hand http.HandlerFunc) http.Handler {
+	return http.TimeoutHandler(http.HandlerFunc(hand), requestTimout, "Request took too long to complete.")
+}
+
+// handler echoes the Path component of the request URL r.
+func handler(w http.ResponseWriter, r *http.Request) {
+	fmt.Printf("%s - Handling request from %s\n", svcId, r.Host)
+	fmt.Printf("%s - Fetching URL %s\n", svcId, timeSvcURL)
+
+	response, err := fetch(r.Context(), timeSvcURL)
+	responseVal := response
 	if err != nil {
-		fmt.Print(err) // send to channel ch
-		return
+
+		responseVal = TimestampResponse[string]{true, svcId, fmt.Sprintf("%s", err), apiVersion}
+	} else {
+		responseVal = TimestampResponse[any]{false, svcId, response, apiVersion}
 	}
-	defer close(ch)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(responseVal)
+}
+
+func fetch(ctx context.Context, url string) (response any, err error) {
+	timeoutContext, cancel := context.WithTimeout(ctx, fetchTimeoutDuration)
+	defer cancel()
+	start := time.Now()
+	req, err := http.NewRequestWithContext(timeoutContext, http.MethodGet, url, nil)
+	if err != nil {
+		fmt.Print(err)
+		return nil, err
+	}
 	client := http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Print(err) // send to channel ch
-		return
+		fmt.Print(err)
+		return nil, err
 	}
 	defer resp.Body.Close() // don't leak resources
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Printf("while reading %s: %v", url, err)
-		return
+		return nil, err
 	}
 	timeSvcResponse := TimestampResponse[int64]{}
 	err = json.Unmarshal(b, &timeSvcResponse)
 	if err != nil {
 		fmt.Println(err)
-		return
+		return nil, err
 	}
-	ch <- timeSvcResponse
 	secs := time.Since(start).Seconds()
 	fmt.Printf("%.2fs %s", secs, url)
-}
-
-// handler echoes the Path component of the request URL r.
-func handler(w http.ResponseWriter, r *http.Request) {
-	unixMilli := time.Now().UnixMilli()
-	fmt.Printf("%d - Handling request from %s\n", unixMilli, r.RemoteAddr)
-	fmt.Printf("%d - Fetching URL %s\n", unixMilli, timeSvcURL)
-
-	ch := make(chan TimestampResponse[int64])
-	go fetch(timeSvcURL, ch)
-	response := <-ch
-	responseVal := TimestampResponse[TimestampResponse[int64]]{false, svcId, response, apiVersion}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(responseVal)
+	return timeSvcResponse, nil
 }
