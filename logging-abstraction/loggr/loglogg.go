@@ -1,20 +1,19 @@
 package loggr
 
 import (
-	"fmt"
-	"time"
+	"log"
 )
 
-type FmtLogg struct{ Logg }
+type LogLogg struct{ Logg }
 
-func (l *FmtLogg) Log(level Level, msg string) {
-	fmt.Printf("[%d][%s] %s\n", time.Now().UnixMilli(), level.Prefix, msg)
+func (l *LogLogg) Log(level Level, msg string) {
+	log.Printf("[%s] %s\n", level.Prefix, msg)
 }
 
-func (logg *FmtLogg) Info(msg string) {
+func (logg *LogLogg) Info(msg string) {
 	logg.Log(Levels.Info, msg)
 }
 
-func (logg *FmtLogg) Warn(msg string) {
+func (logg *LogLogg) Warn(msg string) {
 	logg.Log(Levels.Warn, msg)
 }

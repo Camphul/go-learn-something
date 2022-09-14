@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"logging-abstraction/loggr"
 	"time"
 )
 
 func main() {
+	log.Println("default log pkg")
 	fmt.Println("Running logging-abstraction")
 	logg := loggr.DefaultLoggr()
 	logg.Info("Hello world!")
