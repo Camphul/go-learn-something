@@ -9,5 +9,6 @@ func DefaultLoggr() Logg {
 		return defaultLoggr
 	}
 	fmt.Println("Creating default logger...")
-	return &FmtLogg{}
+	defaultLoggr = &FmtLogg{}
+	return defaultLoggr
 }
