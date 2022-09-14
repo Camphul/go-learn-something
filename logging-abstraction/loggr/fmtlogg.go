@@ -12,5 +12,9 @@ func (l *FmtLogg) Log(level Level, msg string) {
 }
 
 func (logg *FmtLogg) Info(msg string) {
-	logg.Log(Info, msg)
+	logg.Log(Levels.Info, msg)
+}
+
+func (logg *FmtLogg) Warn(msg string) {
+	logg.Log(Levels.Warn, msg)
 }
